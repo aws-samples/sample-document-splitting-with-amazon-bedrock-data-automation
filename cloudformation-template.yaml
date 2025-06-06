@@ -1,0 +1,500 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Document Splitting POC - Secure Production Deployment (No Replication)'
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: 'S3 bucket name (leave empty for auto-generation)'
+    Default: ''
+
+  SampleDocumentS3URI:
+    Type: String
+    Description: 'Sample document S3 URI (uploaded separately)'
+    Default: ''
+
+Conditions:
+  CreateS3Bucket: !Equals [!Ref S3BucketName, '']
+  HasSampleDocument: !Not [!Equals [!Ref SampleDocumentS3URI, '']]
+
+Resources:
+  # KMS Key for S3 encryption
+  S3EncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'KMS Key for Document Splitting S3 bucket encryption'
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow service access
+            Effect: Allow
+            Principal:
+              Service: 
+                - s3.amazonaws.com
+                - logging.s3.amazonaws.com
+            Action:
+              - kms:Decrypt
+              - kms:GenerateDataKey
+            Resource: '*'
+
+  S3EncryptionKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/document-splitting-s3-${AWS::Region}'
+      TargetKeyId: !Ref S3EncryptionKey
+
+  # Main S3 Bucket with self-logging and full security (복제 제거)
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Condition: CreateS3Bucket
+    Properties:
+      BucketName: !Sub 'document-splitting-${AWS::AccountId}-${AWS::Region}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref S3EncryptionKey
+            BucketKeyEnabled: true
+      VersioningConfiguration:
+        Status: Enabled
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: GOVERNANCE
+            Days: 30
+      LoggingConfiguration:
+        DestinationBucketName: !Sub 'document-splitting-${AWS::AccountId}-${AWS::Region}'
+        LogFilePrefix: 'access-logs/'
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, POST, DELETE, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldFiles
+            Status: Enabled
+            Filter:
+              Prefix: 'documents/'
+            ExpirationInDays: 30
+          - Id: TransitionToIA
+            Status: Enabled
+            Filter:
+              Prefix: 'documents/'
+            Transition:
+              Days: 30
+              StorageClass: STANDARD_IA
+          - Id: TransitionToGlacier
+            Status: Enabled
+            Filter:
+              Prefix: 'documents/'
+            Transition:
+              Days: 90
+              StorageClass: GLACIER
+          - Id: DeleteOldAccessLogs
+            Status: Enabled
+            Filter:
+              Prefix: 'access-logs/'
+            ExpirationInDays: 90
+
+  # Enhanced S3 Bucket Policy for maximum security
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: CreateS3Bucket
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyUnSecureCommunications
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub '${S3Bucket}/*'
+              - !Ref S3Bucket
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
+          - Sid: DenyUnencryptedUploads
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:PutObject'
+            Resource: !Sub '${S3Bucket}/*'
+            Condition:
+              StringNotEquals:
+                's3:x-amz-server-side-encryption': 'aws:kms'
+          - Sid: DenyIncorrectEncryptionHeader
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:PutObject'
+            Resource: !Sub '${S3Bucket}/*'
+            Condition:
+              StringNotEquals:
+                's3:x-amz-server-side-encryption-aws-kms-key-id': !GetAtt S3EncryptionKey.Arn
+          - Sid: DenyPublicReadAcl
+            Effect: Deny
+            Principal: '*'
+            Action:
+              - 's3:PutObject'
+              - 's3:PutObjectAcl'
+            Resource: !Sub '${S3Bucket}/*'
+            Condition:
+              StringEquals:
+                's3:x-amz-acl':
+                  - 'public-read'
+                  - 'public-read-write'
+                  - 'authenticated-read'
+
+  # Blueprint 1: Uniform Residential Loan Application
+  BlueprintLoanApplication:
+    Type: AWS::Bedrock::Blueprint
+    Properties:
+      BlueprintName: !Sub 'Doc-URLA'
+      Type: DOCUMENT
+      BlueprintStage: LIVE
+      Schema:
+        "$schema": "http://json-schema.org/draft-07/schema#"
+        description: "A Loan Application is a 9 page document that provides expanded fields to allow the borrower to provide more detailed information including their finantial information to ethnicity and race, loan originator."
+        class: "Uniform-Residential-Loan-Application"
+        type: "object"
+        definitions:
+          ETHNICITY:
+            type: "object"
+            properties:
+              "BORROWER HMDA ETHNICITY ORIGIN TYPE":
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "what option was checked under ethnicity"
+        properties:
+          "INFORMATION COLLECTION CHANNEL":
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "ONE AMONG FOLLOWING : FACE TO FACE INTERVIEW, TELEPHONE INTERVIEW, FAX OR MAIL, EMAIL OR INTERNET"
+          ethnicity:
+            "$ref": "#/definitions/ETHNICITY"
+
+  # Blueprint 2: Homebuyer Certificate
+  BlueprintHomebuyerCert:
+    Type: AWS::Bedrock::Blueprint
+    Properties:
+      BlueprintName: !Sub 'Doc-HomebuyerCert'
+      Type: DOCUMENT
+      BlueprintStage: LIVE
+      Schema:
+        class: "Certificate of Achievement"
+        description: "Certificate issued to a participant who has successfully completed a homebuyer education program"
+        properties:
+          certificate_number:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Unique identifier of the certificate"
+          participant_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Name of the participant who completed the homebuyer education program"
+          homebuyer_education_program:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Name of the homebuyer education program the participant completed"
+
+  # Blueprint 3: Form 1004
+  BlueprintForm1004:
+    Type: AWS::Bedrock::Blueprint
+    Properties:
+      BlueprintName: !Sub 'Doc-Form1004'
+      Type: DOCUMENT
+      BlueprintStage: LIVE
+      Schema:
+        class: "Uniform Residential Appraisal Report"
+        description: "This is a blueprint for a Uniform Residential Appraisal Report"
+        properties:
+          property_address:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "The address of the subject property"
+          borrower:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "The name of the borrower"
+          contract_price:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "The contract price for the subject property"
+
+  # Blueprint 4: Bank Statement
+  BlueprintBankStatement:
+    Type: AWS::Bedrock::Blueprint
+    Properties:
+      BlueprintName: !Sub 'Doc-BankStatement'
+      Type: DOCUMENT
+      BlueprintStage: LIVE
+      Schema:
+        class: "Bank-Statement"
+        description: "A financial statement for a bank account listing transaction summaries for a specific duration"
+        properties:
+          account_number:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "The account number for which the statement is prepared"
+          account_holder_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Name of the bank account holder"
+          bank_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Name of the financial institution"
+
+  # Blueprint 5: Form 1008
+  BlueprintForm1008:
+    Type: AWS::Bedrock::Blueprint
+    Properties:
+      BlueprintName: !Sub 'Doc-Form1008'
+      Type: DOCUMENT
+      BlueprintStage: LIVE
+      Schema:
+        class: "Uniform Underwriting and Transmittal Summary"
+        description: "This document is a multi-page mortgage underwriting form identifiable by its standardized header"
+        properties:
+          borrower_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Name of the primary borrower"
+          property_address:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Address of the subject property"
+          loan_type:
+            enum: ["Conventional", "FHA", "VA", "Other"]
+            instruction: "Type of the loan"
+            inferenceType: "explicit"
+
+  # BDA Data Automation Project
+  BDADataAutomationProject:
+    Type: AWS::Bedrock::DataAutomationProject
+    DependsOn:
+      - BlueprintLoanApplication
+      - BlueprintHomebuyerCert
+      - BlueprintForm1004
+      - BlueprintBankStatement
+      - BlueprintForm1008
+    Properties:
+      ProjectName: !Sub 'document-splitting-project-${AWS::Region}'
+      ProjectDescription: 'Document Splitting POC - Custom Output Processing Project'
+      ProjectStage: LIVE
+      StandardOutputConfiguration:
+        Document:
+          Extraction:
+            BoundingBox:
+              State: DISABLED
+            Granularity:
+              Types: 
+                - DOCUMENT
+                - PAGE
+                - ELEMENT
+          OutputFormat:
+            TextFormat:
+              Types: 
+                - MARKDOWN
+            AdditionalFileFormat:
+              State: DISABLED
+      CustomOutputConfiguration:
+        Blueprints:
+          - BlueprintArn: !Ref BlueprintLoanApplication
+            BlueprintStage: LIVE
+          - BlueprintArn: !Ref BlueprintHomebuyerCert
+            BlueprintStage: LIVE
+          - BlueprintArn: !Ref BlueprintForm1004
+            BlueprintStage: LIVE
+          - BlueprintArn: !Ref BlueprintBankStatement
+            BlueprintStage: LIVE
+          - BlueprintArn: !Ref BlueprintForm1008
+            BlueprintStage: LIVE
+          - BlueprintArn: !Sub 'arn:aws:bedrock:${AWS::Region}:aws:blueprint/bedrock-data-automation-public-us-driver-license'
+      OverrideConfiguration:
+        Document:
+          Splitter: 
+            State: ENABLED
+
+  # Managed Policies for App Runner Role
+  S3AccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: 
+              - !Sub 
+                - '${BucketArn}/documents/*'
+                - BucketArn: !If [CreateS3Bucket, !GetAtt S3Bucket.Arn, !Sub 'arn:aws:s3:::${S3BucketName}']
+              - !Sub 
+                - '${BucketArn}/samples/*'
+                - BucketArn: !If [CreateS3Bucket, !GetAtt S3Bucket.Arn, !Sub 'arn:aws:s3:::${S3BucketName}']
+              - !Sub 
+                - '${BucketArn}/output/*'
+                - BucketArn: !If [CreateS3Bucket, !GetAtt S3Bucket.Arn, !Sub 'arn:aws:s3:::${S3BucketName}']
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource: !If [CreateS3Bucket, !GetAtt S3Bucket.Arn, !Sub 'arn:aws:s3:::${S3BucketName}']
+            Condition:
+              StringLike:
+                's3:prefix':
+                  - 'documents/*'
+                  - 'samples/*'
+                  - 'output/*'
+
+  BedrockAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - bedrock:InvokeDataAutomationAsync
+              - bedrock:GetDataAutomationStatus
+              - bedrock-data-automation:InvokeDataAutomationAsync
+              - bedrock-data-automation:GetDataAutomationStatus
+            Resource: 
+              # Cross-Region Inference Support - 모든 지역 허용
+              - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:data-automation-profile/us.data-automation-v1'
+              - 'arn:aws:bedrock:*:aws:data-automation-project/public-default'
+              - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:data-automation-project/*'
+              # Runtime Resources - 두 가지 패턴 모두 지원
+              - !Sub 'arn:aws:bedrock-data-automation:*:${AWS::AccountId}:data-automation-profile/*'
+              - !Sub 'arn:aws:bedrock-data-automation:*:${AWS::AccountId}:invocation/*'
+              # GetDataAutomationStatus를 위한 추가 패턴
+              - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:data-automation-invocation/*'
+          - Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+            Resource: 
+              # Foundation Models (계정 ID 없음)
+              - 'arn:aws:bedrock:*::foundation-model/*'
+              # Inference Profiles (계정 ID 포함)
+              - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*'
+          - Effect: Allow
+            Action:
+              - kms:Decrypt
+              - kms:GenerateDataKey
+            Resource: !GetAtt S3EncryptionKey.Arn
+
+  # IAM Role for App Runner (no explicit name, no inline policies)
+  AppRunnerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - !Ref S3AccessPolicy
+        - !Ref BedrockAccessPolicy
+
+  # App Runner Service
+  AppRunnerService:
+    Type: AWS::AppRunner::Service
+    DependsOn: BDADataAutomationProject
+    Properties:
+      ServiceName: !Sub 'document-splitting-${AWS::Region}'
+      SourceConfiguration:
+        AutoDeploymentsEnabled: false
+        ImageRepository:
+          ImageIdentifier: 'public.ecr.aws/d0f8z5z3/document-splitting:latest'
+          ImageConfiguration:
+            Port: '8080'
+            RuntimeEnvironmentVariables:
+              - Name: NODE_ENV
+                Value: production
+              - Name: AWS_REGION
+                Value: !Ref AWS::Region
+              - Name: S3_BUCKET
+                Value: !If [CreateS3Bucket, !Ref S3Bucket, !Ref S3BucketName]
+              - Name: BDA_PROJECT_ARN
+                Value: !Ref BDADataAutomationProject
+              - Name: SAMPLE_DOCUMENT_S3_URI
+                Value: !If 
+                  - HasSampleDocument
+                  - !Ref SampleDocumentS3URI
+                  - !Sub 
+                    - 's3://${BucketName}/samples/documents/merged.pdf'
+                    - BucketName: !If [CreateS3Bucket, !Ref S3Bucket, !Ref S3BucketName]
+              - Name: LOG_LEVEL
+                Value: info
+              - Name: LOG_TO_CONSOLE
+                Value: 'true'
+          ImageRepositoryType: ECR_PUBLIC
+      InstanceConfiguration:
+        Cpu: 1024
+        Memory: 2048
+        InstanceRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+
+Outputs:
+  ServiceUrl:
+    Value: !Sub 'https://${AppRunnerService.ServiceUrl}'
+    Description: 'Application URL'
+  
+  ServiceArn:
+    Value: !Ref AppRunnerService
+    Description: 'App Runner Service ARN'
+
+  S3Bucket:
+    Value: !If [CreateS3Bucket, !Ref S3Bucket, !Ref S3BucketName]
+    Description: 'Main S3 bucket for document processing (with self-logging)'
+  
+  KMSKeyId:
+    Value: !Ref S3EncryptionKey
+    Description: 'KMS Key ID for S3 encryption'
+  
+  BDAProjectArn:
+    Value: !Ref BDADataAutomationProject
+    Description: 'BDA Data Automation Project ARN'
+    
+  BlueprintArns:
+    Value: !Sub 
+      - 'LoanApp: ${LoanApp}, HomebuyerCert: ${HomebuyerCert}, Form1004: ${Form1004}, BankStatement: ${BankStatement}, Form1008: ${Form1008}'
+      - LoanApp: !Ref BlueprintLoanApplication
+        HomebuyerCert: !Ref BlueprintHomebuyerCert
+        Form1004: !Ref BlueprintForm1004
+        BankStatement: !Ref BlueprintBankStatement
+        Form1008: !Ref BlueprintForm1008
+    Description: 'Blueprint ARNs for document classification'
+  
+  SampleDocumentS3URI:
+    Value: !If 
+      - HasSampleDocument
+      - !Ref SampleDocumentS3URI
+      - !Sub 
+        - 's3://${BucketName}/samples/documents/merged.pdf'
+        - BucketName: !If [CreateS3Bucket, !Ref S3Bucket, !Ref S3BucketName]
+    Description: 'Sample document S3 URI'
+  
+  UpdateCommand:
+    Value: !Sub 'aws apprunner start-deployment --service-arn ${AppRunnerService.ServiceArn} --region ${AWS::Region}'
+    Description: 'Command to update the App Runner service'
