@@ -1,0 +1,40 @@
+{
+  "name": "sample-document-splitting-with-amazon-bedrock-data-automation-poc",
+  "version": "1.0.0",
+  "description": "Document Splitting with Amazon Bedrock Data Automation Demo for HotB Software",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install --legacy-peer-deps",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "deploy:dev": "./infrastructure/scripts/deploy-dev.sh",
+    "deploy:prod": "./infrastructure/scripts/deploy-prod.sh",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test -- --watchAll=false",
+    "clean": "rm -rf node_modules backend/node_modules frontend/node_modules frontend/build backend/dist",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd backend && eslint .",
+    "lint:frontend": "cd frontend && eslint src/",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.1.0"
+  },
+  "keywords": [
+    "document-processing",
+    "aws-bedrock",
+    "bda",
+    "pdf-splitting"
+  ],
+  "author": "AWS Solutions Architecture Team",
+  "private": true,
+  "dependencies": {
+    "csrf-csrf": "^4.0.3"
+  }
+}

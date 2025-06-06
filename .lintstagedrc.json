@@ -1,0 +1,10 @@
+{
+  "backend/src/**/*.{js,jsx}": [
+    "eslint --fix",
+    "prettier --write"
+  ],
+  "frontend/src/**/*.{js,jsx,ts,tsx}": [
+    "eslint --fix",
+    "prettier --write"
+  ]
+}
