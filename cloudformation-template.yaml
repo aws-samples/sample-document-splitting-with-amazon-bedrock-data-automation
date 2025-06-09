@@ -174,20 +174,203 @@ Resources:
         class: "Uniform-Residential-Loan-Application"
         type: "object"
         definitions:
-          ETHNICITY:
+          assets:
             type: "object"
             properties:
-              "BORROWER HMDA ETHNICITY ORIGIN TYPE":
+              account_type:
                 type: "string"
                 inferenceType: "explicit"
-                instruction: "what option was checked under ethnicity"
+                instruction: "Extract account type (Checking, Savings, Money Market, etc.)"
+              financial_institution:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract financial institution name"
+              cash_value:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract cash or market value in dollars"
+          liabilities:
+            type: "object"
+            properties:
+              company_name:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract creditor company name"
+              unpaid_balance:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract unpaid balance amount"
+              monthly_payment:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract monthly payment amount"
+          properties_owned:
+            type: "object"
+            properties:
+              property_address:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract complete property address"
+              property_value:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract property value"
+              intended_occupancy:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract intended occupancy (Investment, Primary Residence, Second Home)"
         properties:
-          "INFORMATION COLLECTION CHANNEL":
+          borrower_name:
             type: "string"
             inferenceType: "explicit"
-            instruction: "ONE AMONG FOLLOWING : FACE TO FACE INTERVIEW, TELEPHONE INTERVIEW, FAX OR MAIL, EMAIL OR INTERNET"
+            instruction: "Extract borrower's full name (First, Middle, Last, Suffix)"
+          ssn:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract Social Security Number or ITIN"
+          date_of_birth:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract date of birth in mm/dd/yyyy format"
+          citizenship_status:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract citizenship status (U.S. Citizen, Permanent Resident Alien, etc.)"
+          marital_status:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract marital status (Married, Separated, Unmarried)"
+          current_address:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract current complete address"
+          years_at_current_address:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract years at current address"
+          current_housing_expense:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract current monthly rent or housing expense"
+          cell_phone:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract cell phone number"
+          email:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract email address"
+          current_employer:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract current employer or business name"
+          position_title:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract current position or job title"
+          employment_start_date:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract employment start date in mm/dd/yyyy format"
+          years_in_line_of_work:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract years in this line of work"
+          base_monthly_income:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract base monthly income"
+          overtime_monthly_income:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract overtime monthly income"
+          bonus_monthly_income:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract bonus monthly income"
+          total_monthly_income:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract total monthly income from employment"
+          total_assets_value:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract total assets amount from Section 2a"
+          loan_amount:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract loan amount from Section 4"
+          loan_purpose:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract loan purpose (Purchase, Refinance, Other)"
+          subject_property_address:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract subject property address from Section 4"
+          subject_property_value:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract subject property value"
+          property_occupancy:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract property occupancy (Primary Residence, Second Home, Investment)"
+          number_of_units:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract number of units in property"
+          primary_residence_question:
+            type: "boolean"
+            inferenceType: "explicit"
+            instruction: "Extract answer to 'Will you occupy the property as your primary residence?'"
+          outstanding_judgments:
+            type: "boolean"
+            inferenceType: "explicit"
+            instruction: "Extract answer to 'Are there any outstanding judgments against you?'"
+          bankruptcy_history:
+            type: "boolean"
+            inferenceType: "explicit"
+            instruction: "Extract answer to 'Have you declared bankruptcy within the past 7 years?'"
+          foreclosure_history:
+            type: "boolean"
+            inferenceType: "explicit"
+            instruction: "Extract answer to 'Have you had property foreclosed upon in the last 7 years?'"
+          delinquent_federal_debt:
+            type: "boolean"
+            inferenceType: "explicit"
+            instruction: "Extract answer to 'Are you currently delinquent or in default on a Federal debt?'"
           ethnicity:
-            "$ref": "#/definitions/ETHNICITY"
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract ethnicity information from Section 8"
+          race:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract race information from Section 8"
+          sex:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract sex information from Section 8"
+          military_service:
+            type: "boolean"
+            inferenceType: "explicit"
+            instruction: "Extract answer to military service question from Section 7"
+          assets:
+            type: "array"
+            instruction: "Extract all bank accounts and assets from Section 2a"
+            items:
+              "$ref": "#/definitions/assets"
+          liabilities:
+            type: "array"
+            instruction: "Extract all credit cards, debts and liabilities from Section 2c"
+            items:
+              "$ref": "#/definitions/liabilities"
+          properties_owned:
+            type: "array"
+            instruction: "Extract all real estate properties owned from Section 3"
+            items:
+              "$ref": "#/definitions/properties_owned"
 
   # Blueprint 2: Homebuyer Certificate
   BlueprintHomebuyerCert:
@@ -197,21 +380,80 @@ Resources:
       Type: DOCUMENT
       BlueprintStage: LIVE
       Schema:
-        class: "Certificate of Achievement"
+        "$schema": "http://json-schema.org/draft-07/schema#"
         description: "Certificate issued to a participant who has successfully completed a homebuyer education program"
+        class: "Homebuyer-Certificate"
+        type: "object"
+        definitions:
+          education_topics:
+            type: "object"
+            properties:
+              topic_name:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract education topic name from the checklist"
+              completed:
+                type: "boolean"
+                inferenceType: "explicit"
+                instruction: "Extract whether topic is marked as completed (checkmark present)"
         properties:
           certificate_number:
             type: "string"
             inferenceType: "explicit"
-            instruction: "Unique identifier of the certificate"
+            instruction: "Extract certificate number from top left"
+          issued_date:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract issued date in MM/DD/YYYY format"
+          issuing_organization:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract issuing organization name (MGIC)"
+          certificate_title:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract main certificate title"
           participant_name:
             type: "string"
             inferenceType: "explicit"
-            instruction: "Name of the participant who completed the homebuyer education program"
-          homebuyer_education_program:
+            instruction: "Extract participant/borrower name"
+          program_name:
             type: "string"
             inferenceType: "explicit"
-            instruction: "Name of the homebuyer education program the participant completed"
+            instruction: "Extract program name (MGIC's Homebuyer Education Program)"
+          program_description:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract program description text starting with 'Participant receiving this certificate...'"
+          lender_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract lender name from bottom section"
+          presentation_instruction:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract instruction text 'Present this certificate at loan application'"
+          certificate_purpose_text:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract the full certificate purpose explanation text"
+          counseling_authorization_text:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract counseling authorization text starting with 'If I fail to make any mortgage payment...'"
+          signature_line_present:
+            type: "boolean"
+            inferenceType: "explicit"
+            instruction: "Check if participant signature line is present"
+          signature_label:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract signature line label text"
+          education_topics:
+            type: "array"
+            instruction: "Extract all education topics from the checklist with completion status"
+            items:
+              "$ref": "#/definitions/education_topics"
 
   # Blueprint 3: Form 1004
   BlueprintForm1004:
@@ -221,21 +463,228 @@ Resources:
       Type: DOCUMENT
       BlueprintStage: LIVE
       Schema:
+        "$schema": "http://json-schema.org/draft-07/schema#"
+        description: "Blueprint for Uniform Residential Appraisal Report Form 1004/70"
         class: "Uniform Residential Appraisal Report"
-        description: "This is a blueprint for a Uniform Residential Appraisal Report"
+        type: "object"
+        definitions:
+          comparable_sales:
+            type: "object"
+            properties:
+              address:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract comparable sale property address"
+              proximity_to_subject:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract proximity/distance to subject property"
+              sale_price:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract sale price of comparable"
+              gross_living_area:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract gross living area in square feet"
+              bedrooms:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract number of bedrooms"
+              bathrooms:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract number of bathrooms"
+              net_adjustment:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract net adjustment amount (positive or negative)"
+              adjusted_sale_price:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract adjusted sale price after all adjustments"
+          utilities:
+            type: "object"
+            properties:
+              utility_type:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract utility type (Electricity, Gas, Water, Sewer)"
+              service_type:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract service type (Public, Private, Other)"
         properties:
+          file_number:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract file number from header"
           property_address:
             type: "string"
             inferenceType: "explicit"
-            instruction: "The address of the subject property"
-          borrower:
+            instruction: "Extract complete subject property address"
+          borrower_name:
             type: "string"
             inferenceType: "explicit"
-            instruction: "The name of the borrower"
+            instruction: "Extract borrower name"
+          owner_of_record:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract owner of public record"
+          legal_description:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract legal description"
+          assessors_parcel_number:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract assessor's parcel number"
+          real_estate_taxes:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract annual real estate taxes amount"
+          property_rights_appraised:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract property rights appraised (Fee Simple, Leasehold, Other)"
+          assignment_type:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract assignment type (Purchase, Refinance, Other)"
+          lender_client:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract lender/client name"
           contract_price:
             type: "number"
             inferenceType: "explicit"
-            instruction: "The contract price for the subject property"
+            instruction: "Extract contract price"
+          date_of_contract:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract date of contract"
+          occupancy:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract occupancy (Owner, Tenant, Vacant)"
+          property_type:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract property type (Det., Att., S-Det./End Unit)"
+          design_style:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract design/architectural style"
+          year_built:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract year built"
+          effective_age:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract effective age in years"
+          number_of_stories:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract number of stories"
+          total_rooms:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract total number of rooms"
+          bedrooms:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract number of bedrooms"
+          bathrooms:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract number of bathrooms"
+          gross_living_area:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract square feet of gross living area above grade"
+          basement_area:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract basement area in square feet"
+          garage_carport:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract garage/carport information including number of cars"
+          heating_type:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract heating type (FWA, HWBB, Radiant, Other)"
+          cooling_type:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract cooling type (Central Air, Individual, Other)"
+          zoning_classification:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract specific zoning classification"
+          highest_best_use:
+            type: "boolean"
+            inferenceType: "explicit"
+            instruction: "Extract answer to highest and best use question"
+          fema_flood_zone:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract FEMA flood zone designation"
+          neighborhood_price_range_low:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract low end of neighborhood price range"
+          neighborhood_price_range_high:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract high end of neighborhood price range"
+          indicated_value_sales_comparison:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract indicated value by sales comparison approach"
+          indicated_value_cost_approach:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract indicated value by cost approach if developed"
+          indicated_value_income_approach:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract indicated value by income approach if developed"
+          final_opinion_of_value:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract final opinion of market value"
+          effective_date_of_appraisal:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract effective date of appraisal"
+          appraiser_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract appraiser name from signature section"
+          appraiser_license_number:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract state certification or license number"
+          appraiser_state:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract appraiser's state"
+          date_of_signature:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract date of signature and report"
+          comparable_sales:
+            type: "array"
+            instruction: "Extract all comparable sales from page 2 sales comparison grid"
+            items:
+              "$ref": "#/definitions/comparable_sales"
+          utilities:
+            type: "array"
+            instruction: "Extract all utilities information from site section"
+            items:
+              "$ref": "#/definitions/utilities"
 
   # Blueprint 4: Bank Statement
   BlueprintBankStatement:
@@ -245,21 +694,144 @@ Resources:
       Type: DOCUMENT
       BlueprintStage: LIVE
       Schema:
-        class: "Bank-Statement"
-        description: "A financial statement for a bank account listing transaction summaries for a specific duration"
+        "$schema": "http://json-schema.org/draft-07/schema#"
+        description: "A financial statement for a RBS bank account listing transaction summaries for a specific duration"
+        class: "RBS-Bank-Statement"
+        type: "object"
+        definitions:
+          transactions:
+            type: "object"
+            properties:
+              date:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract transaction date"
+              transaction_type:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract transaction type (AUTOMATED PAY IN, DIGITAL BANKING, Faster Payment, BACS, CHQ, etc.)"
+              description:
+                type: "string"
+                inferenceType: "explicit"
+                instruction: "Extract transaction description or payee name"
+              paid_in:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract paid in amount (credit)"
+              paid_out:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract paid out amount (debit)"
+              balance:
+                type: "number"
+                inferenceType: "explicit"
+                instruction: "Extract running balance after transaction"
         properties:
-          account_number:
-            type: "string"
-            inferenceType: "explicit"
-            instruction: "The account number for which the statement is prepared"
-          account_holder_name:
-            type: "string"
-            inferenceType: "explicit"
-            instruction: "Name of the bank account holder"
           bank_name:
             type: "string"
             inferenceType: "explicit"
-            instruction: "Name of the financial institution"
+            instruction: "Extract bank name (RBS - The Royal Bank of Scotland)"
+          statement_type:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract statement type (Statement)"
+          account_type:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract account type (SELECT ACCOUNT)"
+          account_number:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract account number"
+          sort_code:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract sort code"
+          iban:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract IBAN number"
+          bic:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract BIC code"
+          account_holder_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract account holder name"
+          account_holder_address_line1:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract first line of account holder address"
+          account_holder_address_line2:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract second line of account holder address"
+          account_holder_postcode:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract account holder postcode"
+          branch_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract branch name"
+          branch_address_line1:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract first line of branch address"
+          branch_address_line2:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract second line of branch address"
+          branch_postcode:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract branch postcode"
+          statement_period_from:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract statement period start date"
+          statement_period_to:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract statement period end date"
+          previous_balance:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract previous balance amount"
+          total_paid_out:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract total paid out amount for the period"
+          total_paid_in:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract total paid in amount for the period"
+          new_balance:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract new/closing balance"
+          currency:
+            type: "string"
+            inferenceType: "inferred"
+            instruction: "Infer currency from the amounts (likely GBP based on £ symbol)"
+          statement_date:
+            type: "string"
+            inferenceType: "inferred"
+            instruction: "Infer statement generation date from the period information"
+          brought_forward_date:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract brought forward date if shown"
+          brought_forward_balance:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract brought forward balance amount"
+          transactions:
+            type: "array"
+            instruction: "Extract all transaction details from the statement"
+            items:
+              "$ref": "#/definitions/transactions"
 
   # Blueprint 5: Form 1008
   BlueprintForm1008:
@@ -269,21 +841,211 @@ Resources:
       Type: DOCUMENT
       BlueprintStage: LIVE
       Schema:
+        "$schema": "http://json-schema.org/draft-07/schema#"
+        description: "This document is a multi-page mortgage underwriting form identifiable by its standardized header 'Uniform Underwriting and Transmittal Summary' at the top of the first page. The form consists of 3 pages with four numbered sections (I-IV)"
         class: "Uniform Underwriting and Transmittal Summary"
-        description: "This document is a multi-page mortgage underwriting form identifiable by its standardized header"
+        type: "object"
         properties:
           borrower_name:
             type: "string"
             inferenceType: "explicit"
-            instruction: "Name of the primary borrower"
+            instruction: "Extract primary borrower name"
+          borrower_ssn:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract primary borrower SSN"
+          co_borrower_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract co-borrower name"
+          co_borrower_ssn:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract co-borrower SSN"
           property_address:
             type: "string"
             inferenceType: "explicit"
-            instruction: "Address of the subject property"
-          loan_type:
-            enum: ["Conventional", "FHA", "VA", "Other"]
-            instruction: "Type of the loan"
+            instruction: "Extract subject property address"
+          property_type:
+            type: "string"
             inferenceType: "explicit"
+            instruction: "Extract property type (1 unit, 2-4 units, Condominium, PUD, etc.)"
+          occupancy_status:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract occupancy status (Primary Residence, Second Home, Investment Property)"
+          number_of_units:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract number of units"
+          sales_price:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract sales price"
+          appraised_value:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract appraised value"
+          property_rights:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract property rights (Fee Simple, Leasehold)"
+          loan_type:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract loan type (Conventional, FHA, VA, USDA/RHS, Other)"
+          amortization_type:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract amortization type (Fixed-Rate Monthly, Fixed-Rate Biweekly, Balloon, ARM)"
+          loan_purpose:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract loan purpose (Purchase, Cash-Out Refinance, Limited Cash-Out Refinance, etc.)"
+          lien_position:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract lien position (First Mortgage, Second Mortgage)"
+          original_loan_amount:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract original loan amount"
+          initial_pi_payment:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract initial principal and interest payment"
+          initial_note_rate:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract initial note rate percentage"
+          loan_term_months:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract loan term in months"
+          subordinate_financing_amount:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract amount of subordinate financing"
+          underwriter_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract underwriter's name"
+          appraiser_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract appraiser's name and license number"
+          appraisal_company:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract appraisal company name"
+          borrower_base_income:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract borrower's base monthly income"
+          borrower_other_income:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract borrower's other monthly income"
+          co_borrower_base_income:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract co-borrower's base monthly income"
+          co_borrower_other_income:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract co-borrower's other monthly income"
+          total_monthly_income:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract total monthly income"
+          present_housing_payment:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract present housing payment"
+          proposed_first_mortgage_pi:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract proposed first mortgage P&I payment"
+          proposed_hazard_insurance:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract proposed hazard insurance payment"
+          proposed_taxes:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract proposed property taxes"
+          proposed_mortgage_insurance:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract proposed mortgage insurance"
+          proposed_hoa_fees:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract proposed HOA fees"
+          total_primary_housing_expense:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract total primary housing expense"
+          total_monthly_payments:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract total all monthly payments"
+          housing_expense_ratio:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract primary housing expense to income ratio percentage"
+          debt_to_income_ratio:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract total obligations to income ratio percentage"
+          ltv_ratio:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract loan-to-value ratio percentage"
+          cltv_ratio:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract combined loan-to-value ratio percentage"
+          qualifying_rate:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract qualifying rate percentage used for underwriting"
+          level_of_property_review:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract level of property review (Exterior/Interior, Exterior Only, No Appraisal)"
+          manual_underwriting:
+            type: "boolean"
+            inferenceType: "explicit"
+            instruction: "Extract whether manual underwriting was used"
+          aus_source:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract AUS source (DU, LP, Other)"
+          aus_recommendation:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract AUS recommendation"
+          du_case_id:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract DU Case ID or LP AUS Key number"
+          credit_score:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract representative credit/indicator score"
+          required_funds_to_close:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract required borrower funds to close"
+          verified_assets:
+            type: "number"
+            inferenceType: "explicit"
+            instruction: "Extract verified assets amount"
+          seller_name:
+            type: "string"
+            inferenceType: "explicit"
+            instruction: "Extract seller name"
 
   # BDA Data Automation Project
   BDADataAutomationProject:
