@@ -201,9 +201,11 @@ These document types are defined through custom Amazon Bedrock Data Automation b
 
 ### Document Processing
 - `POST /api/upload` - Upload PDF documents
-- `POST /api/processing/bda-standard` - Process with BDA Standard + Bedrock
-- `POST /api/processing/bda-custom` - Process with BDA Custom Output
-- `GET /api/processing/status/:jobId` - Check processing status
+- `POST /api/processing/start` - Start async document processing (both BDA Standard + Bedrock and Custom Output)
+- `GET /api/processing/status/:jobId` - Check processing status and progress
+- `GET /api/processing/result/:jobId` - Get processing results when completed
+- `GET /api/processing/models` - Get supported Bedrock models
+- `POST /api/processing/process` - Legacy endpoint (redirects to async flow)
 
 ### Analysis
 - `GET /api/analysis/costs` - Calculate processing costs
