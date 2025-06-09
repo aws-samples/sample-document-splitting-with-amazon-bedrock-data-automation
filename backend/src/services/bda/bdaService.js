@@ -665,28 +665,8 @@ class BDAService {
             messages: [{
               role: "user",
               content: [{
-                text: prompt + `
-
-IMPORTANT: Respond with this EXACT JSON structure:
-{
-  "documents": [
-    {
-      "type": "form_1008",
-      "confidence": 0.95,
-      "page_start": 1,
-      "page_end": 1,
-      "page_range": "1",
-      "key_indicators": ["Uniform Underwriting", "Form 1008"],
-      "primary_identifier": "Form 1008 Title"
-    }
-  ],
-  "total_documents_found": 1,
-  "analysis_confidence": 0.9
-}
-
-Use only these document types: form_1008, bank_statement, form_1004, loan_application, us_driver_license, homebuyer_cert, other
-
-Include confidence scores (0.0-1.0), page numbers, key identifying text, and primary document title.` }]
+                text: prompt
+              }]
             }],
             inferenceConfig: { maxTokens: 1500, temperature: 0.1 }
           };
@@ -698,28 +678,8 @@ Include confidence scores (0.0-1.0), page numbers, key identifying text, and pri
             messages: [{
               role: "user",
               content: [{
-                text: prompt + `
-
-IMPORTANT: Respond with this EXACT JSON structure:
-{
-  "documents": [
-    {
-      "type": "form_1008",
-      "confidence": 0.95,
-      "page_start": 1,
-      "page_end": 1,
-      "page_range": "1",
-      "key_indicators": ["Uniform Underwriting", "Form 1008"],
-      "primary_identifier": "Form 1008 Title"
-    }
-  ],
-  "total_documents_found": 1,
-  "analysis_confidence": 0.9
-}
-
-Use only these document types: form_1008, bank_statement, form_1004, loan_application, us_driver_license, homebuyer_cert, other
-
-Include confidence scores (0.0-1.0), page numbers, key identifying text, and primary document title.` }]
+                text: prompt
+              }]
             }],
             inferenceConfig: { maxTokens: 1500, temperature: 0.1 }
           };
@@ -731,28 +691,8 @@ Include confidence scores (0.0-1.0), page numbers, key identifying text, and pri
             messages: [{
               role: "user",
               content: [{
-                text: prompt + `
-
-IMPORTANT: Respond with this EXACT JSON structure:
-{
-  "documents": [
-    {
-      "type": "form_1008",
-      "confidence": 0.95,
-      "page_start": 1,
-      "page_end": 1,
-      "page_range": "1",
-      "key_indicators": ["Uniform Underwriting", "Form 1008"],
-      "primary_identifier": "Form 1008 Title"
-    }
-  ],
-  "total_documents_found": 1,
-  "analysis_confidence": 0.9
-}
-
-Use only these document types: form_1008, bank_statement, form_1004, loan_application, us_driver_license, homebuyer_cert, other
-
-Include confidence scores (0.0-1.0), page numbers, key identifying text, and primary document title.` }]
+                text: prompt
+              }]
             }],
             inferenceConfig: { maxTokens: 1500, temperature: 0.1 }
           };
@@ -766,28 +706,7 @@ Include confidence scores (0.0-1.0), page numbers, key identifying text, and pri
             temperature: 0.1,
             messages: [{
               role: "user",
-              content: prompt + `
-
-IMPORTANT: Respond with this EXACT JSON structure:
-{
-  "documents": [
-    {
-      "type": "form_1008",
-      "confidence": 0.95,
-      "page_start": 1,
-      "page_end": 1,
-      "page_range": "1",
-      "key_indicators": ["Uniform Underwriting", "Form 1008"],
-      "primary_identifier": "Form 1008 Title"
-    }
-  ],
-  "total_documents_found": 1,
-  "analysis_confidence": 0.9
-}
-
-Use only these document types: form_1008, bank_statement, form_1004, loan_application, us_driver_license, homebuyer_cert, other
-
-Include confidence scores (0.0-1.0), page numbers, key identifying text, and primary document title.`
+              content: prompt
             }]
           };
           break;
@@ -812,10 +731,7 @@ Include confidence scores (0.0-1.0), page numbers, key identifying text, and pri
       if (modelId === 'claude-3-7-sonnet') {
         content = responseBody.content[0].text;
 
-        // 🔍 Claude usage 직접 확인
-        logger.info(`Claude responseBody.usage exists: ${!!responseBody.usage}`);
-        logger.info(`Claude responseBody.usage type: ${typeof responseBody.usage}`);
-
+        // Claude usage 처리
         if (responseBody.usage) {
           logger.info(`Claude usage keys: ${Object.keys(responseBody.usage)}`);
           logger.info(`Claude input_tokens: ${responseBody.usage.input_tokens}`);
@@ -827,6 +743,21 @@ Include confidence scores (0.0-1.0), page numbers, key identifying text, and pri
           outputTokens: responseBody.usage.output_tokens || 0,
           cacheCreationInputTokens: responseBody.usage.cache_creation_input_tokens || 0,
           cacheReadInputTokens: responseBody.usage.cache_read_input_tokens || 0
+        };
+      } else {
+        content = responseBody.output?.message?.content?.[0]?.text || responseBody.output?.text || '';
+
+        // Nova usage 처리
+        logger.info(`Nova usage exists: ${!!responseBody.usage}`);
+        if (responseBody.usage) {
+          logger.info(`Nova usage keys: ${Object.keys(responseBody.usage)}`);
+          logger.info(`Nova inputTokens: ${responseBody.usage.inputTokens}`);
+          logger.info(`Nova outputTokens: ${responseBody.usage.outputTokens}`);
+        }
+
+        usage = {
+          inputTokens: responseBody.usage?.inputTokens || 0,
+          outputTokens: responseBody.usage?.outputTokens || 0
         };
       }
 
@@ -1106,25 +1037,106 @@ Include confidence scores (0.0-1.0), page numbers, key identifying text, and pri
   buildXMLStructureClassificationPrompt(xmlContent, pageRange) {
     return `You are a document analysis expert. Analyze this XML content containing multiple pages and identify ALL separate documents within it.
 
-Your task is to:
-1. Identify WHERE each document starts and ends by looking for document headers, form numbers, titles
-2. Classify each distinct document using the provided document types
-3. Provide accurate page ranges for each document
-4. Extract key identifying indicators for each document
+CRITICAL REQUIREMENTS:
+- Pages must NOT overlap between documents (each page belongs to exactly ONE document)
+- Page ranges must be continuous and sequential within each document
+- Every page in the XML must be assigned to a document (complete coverage)
+- If uncertain about document boundaries, keep related pages together rather than splitting
 
-Available document types:
-- form_1008: Uniform Underwriting and Transmittal Summary - A multi-page mortgage underwriting form with standardized header and four numbered sections (I-IV)
-- bank_statement: Bank account statements - A financial statement listing transaction summaries for a specific duration
-- form_1004: Uniform Residential Appraisal Report (URAR) - A standardized property appraisal report
-- loan_application: Uniform Residential Loan Application - A 9 page document with expanded fields for borrower's detailed financial information, ethnicity, race, and loan originator details
-- us_driver_license: US Driver's License - Driving license from any US state
-- homebuyer_cert: Homebuyer Education Certificate - Certificate issued to participants who have successfully completed a homebuyer education program
-- other: Any other document type not covered above
+DOCUMENT TYPE IDENTIFICATION GUIDE:
+
+form_1008: Uniform Underwriting and Transmittal Summary
+- Headers: "Uniform Underwriting and Transmittal Summary"
+- Form numbers: "Form 1077", "Form 1008", "Freddie Mac Form 1077", "Fannie Mae Form 1008"
+- Sections: Roman numerals I, II, III, IV (Borrower Info, Mortgage Info, Underwriting Info, Seller Info)
+- Typical pages: 2-3 pages
+
+bank_statement: Bank account statements  
+- Headers: Bank names (RBS, Chase, Wells Fargo, etc.), "Statement", "Account Statement"
+- Content: Transaction tables, account numbers, balances, dates, "Paid In", "Paid Out"
+- Identifiers: IBAN, Sort Code, account holder names, statement periods
+- Typical pages: 1-3 pages per statement
+
+form_1004: Uniform Residential Appraisal Report (URAR)
+- Headers: "Uniform Residential Appraisal Report"
+- Form numbers: "Form 70", "Form 1004", "Freddie Mac Form 70", "Fannie Mae Form 1004"
+- Content: Property appraisal, comparable sales, appraiser certification
+- Typical pages: 6-7 pages
+
+loan_application: Uniform Residential Loan Application
+- Headers: "Uniform Residential Loan Application" 
+- Form numbers: "Form 65", "Form 1003", "Freddie Mac Form 65", "Fannie Mae Form 1003"
+- Content: 9 sections covering borrower info, financial details, demographics, military service
+- Typical pages: 9 pages
+
+us_driver_license: US Driver's License
+- Headers: State names + "Driver License" or "Driver's License"
+- Content: License numbers, photos, personal information, vehicle classifications
+- Typical pages: 1-2 pages (front/back)
+
+homebuyer_cert: Homebuyer Education Certificate
+- Headers: "Certificate of Achievement", "Homebuyer Education Program"
+- Content: MGIC or similar organization, completion certificates, education topics
+- Typical pages: 1 page
+
+other: Any document not matching above categories
+
+ANALYSIS PROCESS:
+1. Scan each page sequentially from 1 to total pages
+2. Identify document start points by finding new headers/form numbers
+3. Determine document end points before next document begins
+4. Assign confidence based on clarity of identifying markers
+5. Ensure all pages are covered with no gaps or overlaps
+
+CONFIDENCE SCORING:
+- 0.9-1.0: Clear form numbers/headers, definitive identification
+- 0.7-0.8: Strong indicators present, minor ambiguity
+- 0.5-0.6: Some identifying features, moderate uncertainty  
+- 0.3-0.4: Weak indicators, significant uncertainty
+- 0.0-0.2: Very unclear, mostly guessing
 
 XML CONTENT TO ANALYZE:
 ${xmlContent}
 
-Analyze the content carefully and identify all distinct documents with their exact page ranges.`;
+IMPORTANT: Respond with this EXACT JSON structure:
+{
+  "documents": [
+    {
+      "type": "form_1008",
+      "confidence": 0.95,
+      "page_start": 1,
+      "page_end": 3,
+      "page_range": "1-3",
+      "key_indicators": ["Uniform Underwriting and Transmittal Summary", "Form 1008", "Section I", "Borrower Information"],
+      "primary_identifier": "Uniform Underwriting and Transmittal Summary"
+    },
+    {
+      "type": "bank_statement", 
+      "confidence": 0.92,
+      "page_start": 4,
+      "page_end": 4,
+      "page_range": "4",
+      "key_indicators": ["RBS Statement", "Account Number", "Transaction History"],
+      "primary_identifier": "RBS Bank Statement"
+    }
+  ],
+  "total_documents_found": 2,
+  "analysis_confidence": 0.93,
+  "validation": {
+    "all_pages_covered": true,
+    "no_overlaps": true,
+    "sequential_ranges": true
+  }
+}
+
+VALIDATION REQUIREMENTS:
+- ✓ Every page number from 1 to [total] is assigned to exactly one document
+- ✓ Page ranges are continuous (no gaps like 1-3, 5-7)
+- ✓ No page appears in multiple documents  
+- ✓ Document types match actual content found
+- ✓ Confidence scores reflect certainty of identification
+
+Use only these document types: form_1008, bank_statement, form_1004, loan_application, us_driver_license, homebuyer_cert, other`;
   }
 
   /**

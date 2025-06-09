@@ -28,7 +28,7 @@ interface ModelOption {
 const Demo: React.FC = () => {
   const [activeTab, setActiveTab] = useState("upload");
   const [uploadedFile, setUploadedFile] = useState<any>(null);
-  const [selectedModel, setSelectedModel] = useState('claude-3-7-sonnet');
+  const [selectedModel, setSelectedModel] = useState('nova-pro');
   const [comparisonResults, setComparisonResults] = useState<any>(null);
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([
     { label: 'Nova Pro - Advanced performance with higher accuracy', value: 'nova-pro' },
