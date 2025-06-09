@@ -147,7 +147,6 @@ sample-document-splitting-with-amazon-bedrock-data-automation/
 ├── samples/                 # Sample documents
 │   └── documents/           # Sample PDF documents
 ├── scripts/                 # Utility scripts
-│   ├── deploy-apprunner.sh  # Deploy to AWS App Runner
 │   ├── deploy-complete.sh   # Complete deployment script
 │   ├── interactive-setup.sh # All-in-one interactive setup and demo tool
 │   ├── push_to_public_ecr.sh # Push Docker image to ECR Public
@@ -176,12 +175,6 @@ Choose "Setup & Deploy" from the main menu, then select your preferred deploymen
 
 ```bash
 ./scripts/deploy-complete.sh
-```
-
-#### App Runner Deployment
-
-```bash
-./scripts/deploy-apprunner.sh
 ```
 
 #### Docker Deployment
