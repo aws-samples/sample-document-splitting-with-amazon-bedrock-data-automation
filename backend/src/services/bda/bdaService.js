@@ -1098,7 +1098,7 @@ CONFIDENCE SCORING:
 XML CONTENT TO ANALYZE:
 ${xmlContent}
 
-IMPORTANT: Respond with this EXACT JSON structure:
+CRITICAL: Respond with ONLY the JSON structure below. Do NOT include any explanatory text, commentary, or markdown formatting. Start your response directly with the opening brace "{".
 {
   "documents": [
     {
@@ -1135,6 +1135,7 @@ VALIDATION REQUIREMENTS:
 - ✓ No page appears in multiple documents  
 - ✓ Document types match actual content found
 - ✓ Confidence scores reflect certainty of identification
+- ✓ Return ONLY above JSON structure with no additional text
 
 Use only these document types: form_1008, bank_statement, form_1004, loan_application, us_driver_license, homebuyer_cert, other`;
   }
