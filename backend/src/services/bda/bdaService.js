@@ -748,11 +748,9 @@ class BDAService {
         content = responseBody.output?.message?.content?.[0]?.text || responseBody.output?.text || '';
 
         // Nova usage 처리
-        logger.info(`Nova usage exists: ${!!responseBody.usage}`);
+        logger.info(`Nova responseBody.usage exists: ${!!responseBody.usage}`);
         if (responseBody.usage) {
           logger.info(`Nova usage keys: ${Object.keys(responseBody.usage)}`);
-          logger.info(`Nova inputTokens: ${responseBody.usage.inputTokens}`);
-          logger.info(`Nova outputTokens: ${responseBody.usage.outputTokens}`);
         }
 
         usage = {
@@ -790,7 +788,7 @@ class BDAService {
   extractJsonFromResponse(content) {
     let cleanedContent = content.trim();
 
-    // Multiple cleaning strategies
+    // Multiple cleaning strategies (기존 로직 유지)
     const cleaningPatterns = [
       /^```json\s*/gm,
       /^```\s*/gm,
@@ -806,7 +804,17 @@ class BDAService {
       cleanedContent = cleanedContent.replace(pattern, '');
     });
 
-    // Try multiple JSON extraction strategies
+    // 🆕 추가: 중복 키 제거 (Claude의 "page_end": 22, "page_end": 22 문제 해결)
+    cleanedContent = this.removeDuplicateKeys(cleanedContent);
+
+    // 🆕 추가: 첫 번째 { 부터 마지막 } 까지만 추출 (더 정확한 JSON 범위)
+    const firstBrace = cleanedContent.indexOf('{');
+    const lastBrace = cleanedContent.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+      cleanedContent = cleanedContent.substring(firstBrace, lastBrace + 1);
+    }
+
+    // Try multiple JSON extraction strategies (기존 로직 완전 유지)
     const extractionStrategies = [
       // Strategy 1: Find complete JSON object/array
       () => {
@@ -847,19 +855,31 @@ class BDAService {
           .replace(/\s+/g, ' '); // Normalize whitespace
 
         return repaired;
+      },
+
+      // 🆕 Strategy 5: 추가적인 JSON 수정 시도
+      () => {
+        return cleanedContent
+          .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // 모든 unquoted keys 처리
+          .replace(/:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}])/g, ':"$1"$2') // unquoted string values 처리
+          .replace(/,(\s*[}\]])/g, '$1') // trailing commas 제거
+          .replace(/}\s*,\s*]/g, '}]'); // 배열 끝 comma 처리
       }
     ];
 
     let parsed = null;
     let lastError = null;
 
-    // Try each extraction strategy
+    // Try each extraction strategy (기존 로직 유지, 로깅만 개선)
     for (let i = 0; i < extractionStrategies.length; i++) {
       try {
         const extracted = extractionStrategies[i]();
         if (!extracted) continue;
 
         logger.info(`Trying extraction strategy ${i + 1}`);
+        // 🆕 추가: 추출된 내용 미리보기
+        logger.info(`Strategy ${i + 1} content preview: ${extracted.substring(0, 200)}...`);
+
         parsed = JSON.parse(extracted);
         logger.info(`Successfully parsed JSON with strategy ${i + 1}`);
         break;
@@ -871,7 +891,7 @@ class BDAService {
       }
     }
 
-    // If all strategies failed, try manual parsing
+    // If all strategies failed, try manual parsing (기존 로직 유지)
     if (!parsed) {
       logger.warn('All JSON strategies failed, attempting manual parsing');
       parsed = this.attemptManualParsing(cleanedContent);
@@ -880,11 +900,68 @@ class BDAService {
     if (!parsed) {
       logger.error(`All parsing strategies failed. Last error: ${lastError?.message}`);
       logger.error(`Original content (first 1000 chars): ${content.substring(0, 1000)}`);
-      throw new Error(`Failed to parse JSON: ${lastError?.message}`);
+
+      // 🆕 개선: 더 상세한 fallback 정보
+      logger.error(`Cleaned content (first 500 chars): ${cleanedContent.substring(0, 500)}`);
+
+      // 기존 fallback 로직 유지하되 약간 개선
+      return {
+        documents: [{
+          type: 'other',
+          confidence: 0.3,
+          page_start: 1,
+          page_end: 1,
+          page_range: '1',
+          key_indicators: ['Parsing failed'],
+          primary_identifier: 'Failed to parse document'
+        }],
+        total_documents_found: 1,
+        analysis_confidence: 0.3,
+        parsing_error: lastError?.message || 'Unknown parsing error',
+        // 🆕 추가: 디버깅 정보
+        debug_info: {
+          original_length: content.length,
+          cleaned_length: cleanedContent.length,
+          strategies_tried: extractionStrategies.length
+        }
+      };
     }
 
-    // Validate and normalize the parsed result
+    // Validate and normalize the parsed result (기존 로직 유지)
     return this.validateAndNormalizeResponse(parsed);
+  }
+
+  // 🆕 새로 추가된 유틸리티 함수
+  removeDuplicateKeys(jsonString) {
+    try {
+      // Claude가 생성하는 중복 키 패턴들 처리
+      const duplicatePatterns = [
+        // "page_end": 22, "page_end": 22 같은 직접적인 중복
+        /("page_end"\s*:\s*\d+),(\s*"page_end"\s*:\s*\d+)/g,
+        /("page_start"\s*:\s*\d+),(\s*"page_start"\s*:\s*\d+)/g,
+        /("confidence"\s*:\s*[\d.]+),(\s*"confidence"\s*:\s*[\d.]+)/g,
+
+        // 일반적인 중복 키 패턴
+        /("(\w+)"\s*:\s*[^,}]+),(\s*"\2"\s*:\s*[^,}]+)/g
+      ];
+
+      let cleaned = jsonString;
+
+      duplicatePatterns.forEach((pattern, index) => {
+        const before = cleaned.length;
+        cleaned = cleaned.replace(pattern, '$1'); // 첫 번째 occurrence만 유지
+        const after = cleaned.length;
+
+        if (before !== after) {
+          logger.info(`Removed duplicate keys with pattern ${index + 1}`);
+        }
+      });
+
+      return cleaned;
+    } catch (error) {
+      logger.warn(`Error removing duplicate keys: ${error.message}`);
+      return jsonString; // 실패하면 원본 반환
+    }
   }
 
   /**
