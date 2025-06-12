@@ -224,6 +224,8 @@ Choose "Cleanup Resources" from the main menu.
 
 ## Security
 
+For production deployments, implement proper authentication and authorization using AWS Cognito, IAM roles with least privilege principles, or integrate with your existing identity provider.
+
 See [CONTRIBUTING](CONTRIBUTING) for more information.
 
 ## License
