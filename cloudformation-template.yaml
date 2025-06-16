@@ -1116,6 +1116,9 @@ Resources:
               - !Sub 
                 - '${BucketArn}/output/*'
                 - BucketArn: !If [CreateS3Bucket, !GetAtt S3Bucket.Arn, !Sub 'arn:aws:s3:::${S3BucketName}']
+              - !Sub 
+                - '${BucketArn}/uploads/*'
+                - BucketArn: !If [CreateS3Bucket, !GetAtt S3Bucket.Arn, !Sub 'arn:aws:s3:::${S3BucketName}']
           - Effect: Allow
             Action:
               - s3:ListBucket
