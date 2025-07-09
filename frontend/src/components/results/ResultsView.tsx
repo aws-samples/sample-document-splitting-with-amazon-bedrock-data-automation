@@ -1,5 +1,5 @@
-// frontend/src/components/results/ResultsView.tsx - PDF viewer 반응형 수정
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+// frontend/src/components/results/ResultsView.tsx - Simple iframe PDF viewer
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   SpaceBetween,
@@ -14,11 +14,7 @@ import {
   Modal,
   Tabs
 } from '@cloudscape-design/components';
-import { Document as PDFDocument, Page, pdfjs } from 'react-pdf';
 import { Document, Job } from '../../types';
-
-// PDF.js worker 설정
-pdfjs.GlobalWorkerOptions.workerSrc = '/js/pdf.worker.min.mjs';
 
 interface ResultsViewProps {
   job: Job;
@@ -28,48 +24,12 @@ interface ResultsViewProps {
 const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState<number>(1);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [modalPageNumber, setModalPageNumber] = useState<number>(1);
-  const [modalNumPages, setModalNumPages] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [iframeKey, setIframeKey] = useState<number>(0);
 
-  // PDF viewer 컨테이너 크기 관리
-  const [viewerWidth, setViewerWidth] = useState<number>(500);
-  const [modalViewerWidth, setModalViewerWidth] = useState<number>(600);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const modalContainerRef = useRef<HTMLDivElement>(null);
-
-  // 컨테이너 크기 측정
-  const updateViewerSizes = useCallback(() => {
-    if (containerRef.current) {
-      const containerWidth = containerRef.current.offsetWidth;
-      // 패딩과 여백을 고려해서 90% 사용
-      const maxWidth = Math.min(containerWidth * 0.9, 800);
-      setViewerWidth(Math.max(300, maxWidth)); // 최소 300px
-    }
-
-    if (modalContainerRef.current) {
-      const modalWidth = modalContainerRef.current.offsetWidth;
-      const maxModalWidth = Math.min(modalWidth * 0.85, 900);
-      setModalViewerWidth(Math.max(400, maxModalWidth)); // 최소 400px
-    }
-  }, []);
-
-  // 창 크기 변경 감지
-  useEffect(() => {
-    updateViewerSizes();
-
-    const handleResize = () => {
-      setTimeout(updateViewerSizes, 100); // 디바운스
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [updateViewerSizes]);
-
-  // PDF URL 가져오기
+  // Get PDF URL
   useEffect(() => {
     const getPresignedUrl = async () => {
       if (uploadedFile && uploadedFile.s3Uri) {
@@ -115,11 +75,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
     return num === 0 ? 'Free' : `$${num.toFixed(4)}`;
   };
 
-  const formatTime = (ms: any): string => {
-    const num = safeNumber(ms);
-    return num < 1000 ? `${Math.round(num)}ms` : `${(num / 1000).toFixed(1)}s`;
-  };
-
   const getConfidenceColor = (confidence: any): "blue" | "grey" | "red" => {
     const num = safeNumber(confidence);
     if (num >= 0.7) return 'blue';
@@ -137,7 +92,17 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
     return 1;
   };
 
-  // Method name 가져오기
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+    setIframeKey(prev => prev + 1); // Force iframe reload
+  };
+
+  const goToDocumentPage = (document: Document) => {
+    const startPage = getDocumentStartPage(document);
+    goToPage(startPage);
+  };
+
+  // Get method name
   const getMethodName = (): string => {
     if (method === 'custom-output') {
       return 'Custom Processing';
@@ -209,56 +174,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
       .trim();
   };
 
-  // PDF navigation - 안전한 상태 업데이트
-  const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-    // 현재 페이지가 범위를 벗어나면 조정
-    setPageNumber(prev => Math.min(prev, numPages));
-  }, []);
-
-  const goToPage = useCallback((page: number) => {
-    setPageNumber(Math.max(1, Math.min(page, numPages)));
-  }, [numPages]);
-
-  const goToDocumentPage = useCallback((document: Document) => {
-    const startPage = getDocumentStartPage(document);
-    if (startPage > 0) {
-      goToPage(startPage);
-      setSelectedDocument(document);
-    }
-  }, [goToPage]);
-
-  // Modal PDF navigation - 안전한 상태 관리
-  const goToModalPage = useCallback((page: number) => {
-    setModalPageNumber(Math.max(1, Math.min(page, modalNumPages)));
-  }, [modalNumPages]);
-
-  const onModalDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
-    setModalNumPages(numPages);
-    if (selectedDocument) {
-      const startPage = getDocumentStartPage(selectedDocument);
-      setModalPageNumber(Math.min(startPage, numPages));
-    }
-  }, [selectedDocument]);
-
-  // Modal 열기 - 안전한 상태 초기화
   const handleViewDetails = useCallback((document: Document) => {
     setSelectedDocument(document);
-    const startPage = getDocumentStartPage(document);
-    setModalPageNumber(startPage);
-    setModalNumPages(0); // 초기화
     setShowDetailModal(true);
+  }, []);
 
-    // 모달 크기 업데이트
-    setTimeout(updateViewerSizes, 100);
-  }, [updateViewerSizes]);
-
-  // Modal 닫기
   const handleCloseModal = useCallback(() => {
     setShowDetailModal(false);
     setSelectedDocument(null);
-    setModalPageNumber(1);
-    setModalNumPages(0);
   }, []);
 
   // Flatten object for display
@@ -291,9 +214,28 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
 
     const structuredData = selectedDocument.structuredData || {};
     const bedrockAnalysis = selectedDocument.bedrockAnalysis;
+    
+    // Check if Standard + AI method
+    const isStandardBedrock = method === 'standard-bedrock';
+    
+    // Standard + AI method shows all fields
+    const allFields = flattenObject(structuredData);
+    
+    // AI Analysis specific fields (moved to AI Analysis tab in Standard + AI)
+    const aiAnalysisFields = ['PRIMARY IDENTIFIER', 'PAGE RANGE', 'KEY INDICATORS'];
+    
+    // Fields to show in Extracted Fields tab for Standard + AI (excluding AI Analysis fields)
+    const extractedFields = isStandardBedrock ? 
+      allFields.filter(item => !aiAnalysisFields.includes(item.field)) : 
+      allFields;
+    
+    // Fields to show in AI Analysis tab (Standard + AI method only)
+    const aiFields = isStandardBedrock ? 
+      allFields.filter(item => aiAnalysisFields.includes(item.field)) : 
+      [];
 
     return (
-      <div ref={modalContainerRef}>
+      <div>
         <Tabs
           tabs={[
             {
@@ -301,7 +243,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
               id: "fields",
               content: (
                 <Box>
-                  {Object.keys(structuredData).length === 0 ? (
+                  {extractedFields.length === 0 ? (
                     <Alert type="info">No structured data was extracted from this document.</Alert>
                   ) : (
                     <Table
@@ -315,29 +257,42 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
                           id: "value",
                           header: "Extracted Value",
                           cell: (item: any) => (
-                            <div style={{ maxWidth: '400px', wordBreak: 'break-word' }}>
-                              <Box>
-                                {item.value.length > 200 ? (
-                                  <>
-                                    {item.value.substring(0, 200)}...
-                                    <Box margin={{ top: 'xs' }}>
-                                      <Button
-                                        variant="link"
-                                        onClick={() => navigator.clipboard.writeText(item.value)}
-                                      >
-                                        Copy full value
-                                      </Button>
-                                    </Box>
-                                  </>
-                                ) : (
-                                  item.value
-                                )}
-                              </Box>
+                            <div style={{ maxWidth: '500px' }}>
+                              {item.value.length > 100 ? (
+                                <div style={{
+                                  maxHeight: '120px',
+                                  overflowY: 'auto',
+                                  padding: '8px',
+                                  backgroundColor: '#f8f9fa',
+                                  border: '1px solid #e1e4e8',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  fontFamily: 'monospace',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word'
+                                }}>
+                                  {item.value}
+                                </div>
+                              ) : (
+                                <div style={{ wordBreak: 'break-word' }}>
+                                  {item.value}
+                                </div>
+                              )}
+                              {item.value.length > 100 && (
+                                <Box margin={{ top: 'xs' }}>
+                                  <Button
+                                    variant="link"
+                                    onClick={() => navigator.clipboard.writeText(item.value)}
+                                  >
+                                    Copy full value
+                                  </Button>
+                                </Box>
+                              )}
                             </div>
                           )
                         }
                       ]}
-                      items={flattenObject(structuredData)}
+                      items={extractedFields}
                       variant="embedded"
                     />
                   )}
@@ -350,64 +305,18 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
               content: (
                 <Box textAlign="center">
                   {pdfUrl ? (
-                    <SpaceBetween direction="vertical" size="m">
-                      <Box variant="h5">
+                    <Box>
+                      <Box variant="h5" margin={{ bottom: 'm' }}>
                         {selectedDocument.type?.replace(/_/g, ' ').toUpperCase()} - Pages {selectedDocument.pageRange}
                       </Box>
-
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'center',
-                        overflow: 'hidden',
-                        width: '100%'
-                      }}>
-                        <PDFDocument
-                          file={pdfUrl}
-                          onLoadSuccess={onModalDocumentLoadSuccess}
-                          loading="Loading PDF..."
-                          error="Failed to load PDF"
-                        >
-                          <Page
-                            pageNumber={modalPageNumber}
-                            width={modalViewerWidth}
-                            renderTextLayer={false}
-                            renderAnnotationLayer={false}
-                          />
-                        </PDFDocument>
-                      </div>
-
-                      {modalNumPages > 0 && (
-                        <Box textAlign="center">
-                          <SpaceBetween direction="horizontal" size="s" alignItems="center">
-                            <Button
-                              disabled={modalPageNumber <= 1}
-                              onClick={() => goToModalPage(modalPageNumber - 1)}
-                              iconName="angle-left"
-                            >
-                              Previous
-                            </Button>
-
-                            <Box variant="h5">
-                              Page {modalPageNumber} of {modalNumPages}
-                            </Box>
-
-                            <Button
-                              disabled={modalPageNumber >= modalNumPages}
-                              onClick={() => goToModalPage(modalPageNumber + 1)}
-                              iconName="angle-right"
-                              iconAlign="right"
-                            >
-                              Next
-                            </Button>
-                          </SpaceBetween>
-
-                          <Box margin={{ top: 's' }} variant="small" color="text-body-secondary">
-                            This document spans pages {selectedDocument.pageRange}.
-                          </Box>
-                        </Box>
-                      )}
-
-                    </SpaceBetween>
+                      <iframe
+                        src={`${pdfUrl}#page=${getDocumentStartPage(selectedDocument)}`}
+                        width="100%"
+                        height="600px"
+                        style={{ border: '1px solid #ccc', borderRadius: '4px' }}
+                        title="PDF Document"
+                      />
+                    </Box>
                   ) : (
                     <Alert type="info" header="PDF Viewer Not Available">
                       <Box>Page range: {selectedDocument.pageRange}</Box>
@@ -416,41 +325,102 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
                 </Box>
               )
             },
-            ...(bedrockAnalysis ? [{
+            ...(bedrockAnalysis || (isStandardBedrock && aiFields.length > 0) ? [{
               label: "AI Analysis",
               id: "analysis",
               content: (
                 <SpaceBetween direction="vertical" size="s">
-                  <ColumnLayout columns={2}>
-                    <Box>
-                      <Box variant="awsui-key-label">Model Used</Box>
-                      <Box>{formatModelName(bedrockAnalysis.model || 'Unknown')}</Box>
-                    </Box>
-                    <Box>
-                      <Box variant="awsui-key-label">Classification Result</Box>
-                      <Box>{(bedrockAnalysis as any).classification || 'N/A'}</Box>
-                    </Box>
-                  </ColumnLayout>
+                  {bedrockAnalysis && (
+                    <>
+                      <ColumnLayout columns={2}>
+                        <Box>
+                          <Box variant="awsui-key-label">Model Used</Box>
+                          <Box>{formatModelName(bedrockAnalysis.model || 'Unknown')}</Box>
+                        </Box>
+                        <Box>
+                          <Box variant="awsui-key-label">Classification Result</Box>
+                          <Box>{(bedrockAnalysis as any).classification || 'N/A'}</Box>
+                        </Box>
+                      </ColumnLayout>
 
-                  {(bedrockAnalysis as any).confidence && (
-                    <Box>
-                      <Box variant="awsui-key-label">AI Confidence Score</Box>
-                      <Box>{Math.round(safeNumber((bedrockAnalysis as any).confidence) * 100)}%</Box>
-                    </Box>
+                      {(bedrockAnalysis as any).confidence && (
+                        <Box>
+                          <Box variant="awsui-key-label">AI Confidence Score</Box>
+                          <Box>{Math.round(safeNumber((bedrockAnalysis as any).confidence) * 100)}%</Box>
+                        </Box>
+                      )}
+
+                      {(bedrockAnalysis as any).reasoning && (
+                        <Box>
+                          <Box variant="awsui-key-label">Analysis Reasoning</Box>
+                          <div style={{
+                            backgroundColor: '#f8f9fa',
+                            padding: '12px',
+                            borderRadius: '4px',
+                            border: '1px solid #e1e4e8'
+                          }}>
+                            {(bedrockAnalysis as any).reasoning}
+                          </div>
+                        </Box>
+                      )}
+                    </>
                   )}
-
-                  {(bedrockAnalysis as any).reasoning && (
-                    <Box>
-                      <Box variant="awsui-key-label">Analysis Reasoning</Box>
-                      <div style={{
-                        backgroundColor: '#f8f9fa',
-                        padding: '12px',
-                        borderRadius: '4px',
-                        border: '1px solid #e1e4e8'
-                      }}>
-                        {(bedrockAnalysis as any).reasoning}
-                      </div>
-                    </Box>
+                  
+                  {/* Show AI analysis fields for Standard + AI method */}
+                  {isStandardBedrock && aiFields.length > 0 && (
+                    <>
+                      {bedrockAnalysis && <Box margin={{ top: 'l' }} />}
+                      <Table
+                        columnDefinitions={[
+                          {
+                            id: "field",
+                            header: "Field Name",
+                            cell: (item: any) => <Box variant="code">{item.field}</Box>
+                          },
+                          {
+                            id: "value",
+                            header: "Extracted Value",
+                            cell: (item: any) => (
+                              <div style={{ maxWidth: '500px' }}>
+                                {item.value.length > 100 ? (
+                                  <div style={{
+                                    maxHeight: '120px',
+                                    overflowY: 'auto',
+                                    padding: '8px',
+                                    backgroundColor: '#f8f9fa',
+                                    border: '1px solid #e1e4e8',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    fontFamily: 'monospace',
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word'
+                                  }}>
+                                    {item.value}
+                                  </div>
+                                ) : (
+                                  <div style={{ wordBreak: 'break-word' }}>
+                                    {item.value}
+                                  </div>
+                                )}
+                                {item.value.length > 100 && (
+                                  <Box margin={{ top: 'xs' }}>
+                                    <Button
+                                      variant="link"
+                                      onClick={() => navigator.clipboard.writeText(item.value)}
+                                    >
+                                      Copy full value
+                                    </Button>
+                                  </Box>
+                                )}
+                              </div>
+                            )
+                          }
+                        ]}
+                        items={aiFields}
+                        variant="embedded"
+                        header={<Header variant="h3">AI Classification Results</Header>}
+                      />
+                    </>
                   )}
                 </SpaceBetween>
               )
@@ -494,7 +464,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
       id: "pageRange",
       header: "Pages",
       cell: (item: Document) => (
-        uploadedFile ? (
+        pdfUrl ? (
           <Button
             variant="link"
             onClick={() => goToDocumentPage(item)}
@@ -568,61 +538,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({ job, uploadedFile }) => {
         {/* PDF Viewer */}
         {pdfUrl && !pdfError && (
           <Container header={<Header variant="h3">Document Viewer</Header>}>
-            <div ref={containerRef}>
-              <SpaceBetween direction="vertical" size="m">
-
-                <Box textAlign="center">
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                    width: '100%'
-                  }}>
-                    <PDFDocument
-                      file={pdfUrl}
-                      onLoadSuccess={onDocumentLoadSuccess}
-                      loading="Loading PDF..."
-                      error="Failed to load PDF"
-                    >
-                      <Page
-                        pageNumber={pageNumber}
-                        width={viewerWidth}
-                        renderTextLayer={false}
-                        renderAnnotationLayer={false}
-                      />
-                    </PDFDocument>
-                  </div>
-                </Box>
-
-                {numPages > 0 && (
-                  <Box textAlign="center">
-                    <SpaceBetween direction="horizontal" size="s" alignItems="center">
-                      <Button
-                        disabled={pageNumber <= 1}
-                        onClick={() => goToPage(pageNumber - 1)}
-                        iconName="angle-left"
-                      >
-                        Previous
-                      </Button>
-
-                      <Box variant="h4">
-                        Page {pageNumber} of {numPages}
-                      </Box>
-
-                      <Button
-                        disabled={pageNumber >= numPages}
-                        onClick={() => goToPage(pageNumber + 1)}
-                        iconName="angle-right"
-                        iconAlign="right"
-                      >
-                        Next
-                      </Button>
-                    </SpaceBetween>
-                  </Box>
-                )}
-
-              </SpaceBetween>
-            </div>
+            <iframe
+              key={iframeKey}
+              src={`${pdfUrl}#page=${currentPage}`}
+              width="100%"
+              height="600px"
+              style={{ border: '1px solid #ccc', borderRadius: '4px' }}
+              title="PDF Document"
+            />
           </Container>
         )}
 

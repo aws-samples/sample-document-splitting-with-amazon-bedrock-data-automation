@@ -7,10 +7,9 @@
     "@cloudscape-design/design-tokens": "^3.0.32",
     "@cloudscape-design/global-styles": "^1.0.21",
     "axios": "^1.6.0",
-    "pdfjs-dist": "^5.2.133",
+
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-pdf": "^9.2.1",
     "react-router-dom": "^6.18.0",
     "uuid": "^9.0.1"
   },
@@ -26,17 +25,8 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/uuid": "^9.0.0",
-    "react-scripts": "^5.0.1",
+    "react-scripts": "5.0.1",
     "typescript": "^4.9.5"
-  },
-  "overrides": {
-    "webpack-dev-server": "4.15.1"
-  },
-  "resolutions": {
-    "nth-check": "^2.0.1",
-    "postcss": "^8.4.31",
-    "webpack-dev-server": "^5.2.1",
-    "svgo": "^3.0.0"
   },
   "browserslist": {
     "production": [

@@ -34,7 +34,8 @@ aws cloudformation deploy \
         S3BucketName=$S3_BUCKET \
         SampleDocumentS3URI=$SAMPLE_DOCUMENT_S3_URI \
     --capabilities CAPABILITY_NAMED_IAM \
-    --region $AWS_REGION
+    --region $AWS_REGION \
+    --s3-bucket $S3_BUCKET
 
 # Step 3: 결과 가져오기
 echo ""

@@ -288,7 +288,9 @@ class BDAService {
           statistics: documentStats,
           structuredForLLM: true,
           documentLevel: standardOutput.document || {}
-        }
+        },
+        // Store the complete BDA Standard Output for field extraction
+        bdaStandardOutput: standardOutput
       };
 
       // Create structured XML for LLM analysis
@@ -532,8 +534,10 @@ class BDAService {
           ...originalDoc,
           type: modelResponse.classification || 'other (default fallback)',
           confidence: modelResponse.confidence || 0.5,
+          structuredData: this.extractStandardOutputFields(originalDoc),
           bedrockAnalysis: {
             model: modelId,
+            classification: modelResponse.classification || 'other',
             keyIndicators: modelResponse.keyIndicators || [],
             splitDetected: false,
             error: 'No documents array in response'
@@ -553,6 +557,18 @@ class BDAService {
         // Extract text for this specific page range from original XML
         const documentText = this.extractTextFromPageRange(originalDoc.text, pageStart, pageEnd);
 
+        // Extract structured data from BDA Standard Output for this page range
+        const standardFields = this.extractStandardOutputFields(originalDoc, pageStart, pageEnd);
+
+        // Combine with AI analysis fields
+        const combinedStructuredData = {
+          ...standardFields,
+          // AI Analysis fields (will be moved to AI Analysis tab in frontend)
+          primary_identifier: docData.primary_identifier || '',
+          page_range: docData.page_range || pageRange,
+          key_indicators: docData.key_indicators || []
+        };
+
         return {
           id: `${originalDoc.id}-split-${index + 1}`,
           type: docData.type || 'other',
@@ -562,13 +578,10 @@ class BDAService {
           pageRange: pageRange,
           segmentIndex: originalDoc.segmentIndex,
           documentGroup: index,
-          structuredData: {
-            primary_identifier: docData.primary_identifier || '',
-            page_range: docData.page_range || pageRange,
-            key_indicators: docData.key_indicators || []
-          },
+          structuredData: combinedStructuredData,
           bedrockAnalysis: {
             model: modelId,
+            classification: docData.type || 'other',
             keyIndicators: docData.key_indicators || [],
             splitDetected: true,
             originalDocument: originalDoc.id,
@@ -593,8 +606,10 @@ class BDAService {
         ...originalDoc,
         type: 'other',
         confidence: 0.3,
+        structuredData: this.extractStandardOutputFields(originalDoc),
         bedrockAnalysis: {
           model: modelId,
+          classification: 'other',
           error: 'Failed to parse multi-document response',
           splitDetected: false
         }
@@ -1140,21 +1155,42 @@ form_1004: Uniform Residential Appraisal Report (URAR)
 - Content: Property appraisal, comparable sales, appraiser certification
 - Typical pages: 6-7 pages
 
-loan_application: Uniform Residential Loan Application
+loan_application: Uniform Residential Loan Application (URLA)
 - Headers: "Uniform Residential Loan Application" 
 - Form numbers: "Form 65", "Form 1003", "Freddie Mac Form 65", "Fannie Mae Form 1003"
 - Content: 9 sections covering borrower info, financial details, demographics, military service
 - Typical pages: 9 pages
 
 us_driver_license: US Driver's License
-- Headers: State names + "Driver License" or "Driver's License"
-- Content: License numbers, photos, personal information, vehicle classifications
+- Headers: EXACTLY "[STATE NAME] Driver License" or "[STATE NAME] Driver's License" (e.g., "MISSOURI Driver License")
+- Content: DL NO., EXP date, DOB, photo, address, vehicle class restrictions, state seal/logo
+- Identifiers: License number format (e.g., M123456789), DMV issued, state department of motor vehicles
 - Typical pages: 1-2 pages (front/back)
+- MUST HAVE: license number, expiration date, photo
 
 homebuyer_cert: Homebuyer Education Certificate
 - Headers: "Certificate of Achievement", "Homebuyer Education Program"
 - Content: MGIC or similar organization, completion certificates, education topics
 - Typical pages: 1 page
+
+du_findings: DU Underwriting Findings
+- Headers: "Desktop Underwriter", "DU Findings", "Underwriting Findings"
+- Content: Automated underwriting results, risk assessment, recommendations
+- Identifiers: Case ID, DU version, recommendation codes
+- Typical pages: 8 pages
+
+psa: Purchase and Sale Agreement
+- Headers: "Purchase Agreement", "Sales Contract", "Purchase and Sale Agreement", "Financing and Other Addenda", "Financing Addendum", "Title Contingency Addendum", "Inspection Addendum", "Foreign Investment in Real Property Tax Act"
+- Content: Property purchase terms, buyer/seller information, closing details, financing contingencies, addenda
+- Identifiers: Property address, purchase price, contract date, "Optional Clauses Addendum", "Financing Contingency"
+- Typical pages: 8-15 pages
+- INCLUDES: All addenda, amendments, and financing contingencies related to property purchase
+
+transmittal: Loan Transmittal Summary
+- Headers: "FHA Loan Underwriting", "Transmittal Summary", "Loan Transmittal", "Delivery Summary", "FIRPTA Certification" 
+- Content: Loan package summary, delivery instructions, investor requirements
+- Identifiers: Loan number, investor name, delivery date
+- Typical pages: 4 pages
 
 other: Any document not matching above categories
 
@@ -1214,7 +1250,12 @@ VALIDATION REQUIREMENTS:
 - ✓ Confidence scores reflect certainty of identification
 - ✓ Return ONLY above JSON structure with no additional text
 
-Use only these document types: form_1008, bank_statement, form_1004, loan_application, us_driver_license, homebuyer_cert, other`;
+Use only these document types: form_1008, bank_statement, form_1004, loan_application, us_driver_license, homebuyer_cert, du_findings, psa, transmittal, other
+
+STRICT CLASSIFICATION RULES:
+- us_driver_license: ONLY if contains state DMV logo + license number + expiration date
+- psa: INCLUDES "Financing Addendum", "Title Contingency", purchase agreements
+- other: USE for FIRPTA, tax certifications, seller certifications, unidentifiable documents`;
   }
 
   /**
@@ -1529,6 +1570,149 @@ Use only these document types: form_1008, bank_statement, form_1004, loan_applic
       logger.error(`Failed to save results to S3: ${error.message}`);
     }
   }
+
+  /**
+   * Extract structured fields from BDA Standard Output
+   */
+  extractStandardOutputFields(originalDoc, pageStart = null, pageEnd = null) {
+    try {
+      const structuredData = {};
+
+      // Debug: Log the structure of originalDoc
+      logger.info(`Debug extractStandardOutputFields: bdaStandardOutput exists: ${!!originalDoc.bdaStandardOutput}`);
+      logger.info(`Debug extractStandardOutputFields: bdaGenerativeFields exists: ${!!originalDoc.bdaGenerativeFields}`);
+
+      // Extract from BDA Standard Output structure directly
+      if (originalDoc.bdaStandardOutput) {
+        const standardOutput = originalDoc.bdaStandardOutput;
+        logger.info(`Debug: standardOutput keys: ${Object.keys(standardOutput)}`);
+
+        // Extract document-level structured data
+        if (standardOutput.document) {
+          const doc = standardOutput.document;
+          logger.info(`Debug: document keys: ${Object.keys(doc)}`);
+
+          // Add document statistics
+          if (doc.statistics) {
+            const stats = doc.statistics;
+            logger.info(`Debug: document statistics: ${JSON.stringify(stats)}`);
+            if (stats.table_count !== undefined) structuredData.TABLE_COUNT = stats.table_count;
+            if (stats.figure_count !== undefined) structuredData.FIGURE_COUNT = stats.figure_count;
+            if (stats.element_count !== undefined) structuredData.ELEMENT_COUNT = stats.element_count;
+            if (stats.word_count !== undefined) structuredData.WORD_COUNT = stats.word_count;
+          }
+
+          // Extract generative fields if available
+          if (doc.generative_fields) {
+            logger.info(`Debug: document generative_fields keys: ${Object.keys(doc.generative_fields)}`);
+            this.extractGenerativeFields(doc.generative_fields, structuredData);
+          }
+        }
+
+        // Extract page-level structured data for specific page range
+        if (standardOutput.pages && Array.isArray(standardOutput.pages)) {
+          const relevantPages = pageStart && pageEnd ?
+            standardOutput.pages.filter(page => {
+              const pageNum = page.page_index + 1;
+              return pageNum >= pageStart && pageNum <= pageEnd;
+            }) : standardOutput.pages;
+
+          logger.info(`Debug: Processing ${relevantPages.length} relevant pages`);
+          this.extractPageLevelFields(relevantPages, structuredData);
+        }
+      }
+
+      // Fallback: Extract from generative fields if available
+      if (originalDoc.bdaGenerativeFields && Object.keys(structuredData).length <= 4) { // Only basic stats
+        const generativeFields = originalDoc.bdaGenerativeFields;
+        logger.info(`Debug: Using fallback generative fields`);
+
+        if (generativeFields.documentLevel) {
+          const docLevel = generativeFields.documentLevel;
+          if (docLevel.statistics) {
+            const stats = docLevel.statistics;
+            if (stats.table_count !== undefined) structuredData.TABLE_COUNT = stats.table_count;
+            if (stats.figure_count !== undefined) structuredData.FIGURE_COUNT = stats.figure_count;
+            if (stats.element_count !== undefined) structuredData.ELEMENT_COUNT = stats.element_count;
+            if (stats.word_count !== undefined) structuredData.WORD_COUNT = stats.word_count;
+          }
+        }
+      }
+
+      logger.info(`Extracted ${Object.keys(structuredData).length} standard fields for pages ${pageStart || 'all'}-${pageEnd || 'all'}`);
+      logger.info(`Extracted ${Object.keys(structuredData).length} standard fields for pages ${pageStart || 'all'}-${pageEnd || 'all'}`);
+      return structuredData;
+
+    } catch (error) {
+      logger.error(`Error extracting standard output fields: ${error.message}`);
+      return {};
+    }
+  }
+
+  /**
+   * Extract generative fields from BDA Standard Output
+   */
+  extractGenerativeFields(generativeFields, structuredData) {
+    try {
+      // Recursively extract all generative fields
+      for (const [key, value] of Object.entries(generativeFields)) {
+        if (value !== null && value !== undefined && value !== '') {
+          const fieldName = key.toUpperCase().replace(/[_\s]+/g, '_');
+
+          if (typeof value === 'object' && !Array.isArray(value)) {
+            // Nested object - flatten it
+            this.extractGenerativeFields(value, structuredData);
+          } else {
+            structuredData[fieldName] = value;
+          }
+        }
+      }
+    } catch (error) {
+      logger.error(`Error extracting generative fields: ${error.message}`);
+    }
+  }
+
+  /**
+   * Extract structured data from page-level elements
+   */
+  extractPageLevelFields(pages, structuredData) {
+    try {
+      // Standard Output only provides markdown text, not structured key-value pairs
+      // We'll store the markdown content for display purposes
+      let allMarkdown = '';
+
+      for (const page of pages) {
+        // Collect markdown content
+        if (page.representation && page.representation.markdown) {
+          allMarkdown += `\n\n--- Page ${page.page_index + 1} ---\n\n${page.representation.markdown}`;
+        }
+
+        // Extract from page elements if available (unlikely in standard output)
+        if (page.elements && Array.isArray(page.elements)) {
+          for (const element of page.elements) {
+            if (element.generative_fields) {
+              this.extractGenerativeFields(element.generative_fields, structuredData);
+            }
+          }
+        }
+
+        // Extract from page-level generative fields (unlikely in standard output)
+        if (page.generative_fields) {
+          this.extractGenerativeFields(page.generative_fields, structuredData);
+        }
+      }
+
+      // Store the markdown content for display
+      if (allMarkdown.trim()) {
+        structuredData.MARKDOWN_CONTENT = allMarkdown.trim();
+      }
+
+    } catch (error) {
+      logger.error(`Error extracting page-level fields: ${error.message}`);
+    }
+  }
+
+
 
   parseS3Uri(s3Uri) {
     const path = s3Uri.replace('s3://', '');
