@@ -29,7 +29,7 @@ app.use(helmet({
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
+      frameSrc: ["'self'", "https://*.amazonaws.com", "https://*.s3.amazonaws.com", "https://*.s3.*.amazonaws.com", "https://*.awsapprunner.com"],
     },
   } : false, // Disable CSP in development
 }));
